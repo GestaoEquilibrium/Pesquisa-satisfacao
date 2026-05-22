@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NPS Dashboard — Grupo Equilibrium</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --eq-navy:  #1F4E79;
+    --eq-teal:  #1A7A6E;
+    --eq-teal-l:#E1F5EE;
+    --det:      #e74c3c;
+    --neu:      #e67e22;
+    --pro:      #27ae60;
+    --text:     #1a1a2e;
+    --muted:    #6b7a8d;
+    --border:   #e2e8f0;
+    --bg:       #f0f4f8;
+    --white:    #ffffff;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Sora', sans-serif; background: var(--bg); color: var(--text); }
+
+  header {
+    background: var(--eq-navy);
+    color: white;
+    padding: 1.2rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo-pinwheel { width: 32px; height: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+  .p1 { background: rgba(255,255,255,.9); border-radius: 50% 0 50% 0; }
+  .p2 { background: var(--eq-teal); border-radius: 0 50% 0 50%; }
+  .p3 { background: var(--eq-teal); border-radius: 0 50% 0 50%; transform: rotate(180deg); }
+  .p4 { background: rgba(255,255,255,.9); border-radius: 50% 0 50% 0; transform: rotate(180deg); }
+  .header-title { font-size: 17px; font-weight: 600; }
+  .header-sub   { font-size: 12px; opacity: .7; }
+
+  .filters {
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    padding: 0.9rem 2rem;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filters label { font-size: 12px; color: var(--muted); margin-right: 4px; }
+  .filters select {
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-family: 'Sora', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--white);
+    cursor: pointer;
+  }
+  .btn-refresh {
+    margin-left: auto;
+    padding: 0.4rem 1rem;
+    background: var(--eq-teal);
+    color: white;
+    border: none;
+    border-radius: 7px;
+    font-family: 'Sora', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .btn-refresh:hover { background: var(--eq-navy); }
+
+  .main { padding: 1.5rem 2rem; max-width: 1200px; margin: 0 auto; }
+
+  /* Metric cards */
+  .metric-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+  .metric-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.1rem 1.2rem;
+  }
+  .metric-card.highlight { border-left: 4px solid var(--eq-teal); }
+  .mc-label { font-size: 12px; color: var(--muted); margin-bottom: 0.4rem; }
+  .mc-value { font-size: 28px; font-weight: 600; line-height: 1; }
+  .mc-sub   { font-size: 12px; color: var(--muted); margin-top: 0.3rem; }
+  .nps-score { color: var(--eq-navy); }
+  .det-color { color: var(--det); }
+  .neu-color { color: var(--neu); }
+  .pro-color { color: var(--pro); }
+
+  /* NPS bar */
+  .nps-bar-wrap { margin: 1.5rem 0; }
+  .nps-bar { height: 14px; border-radius: 8px; overflow: hidden; display: flex; }
+  .nps-bar-det { background: var(--det); transition: width .5s; }
+  .nps-bar-neu { background: var(--neu); transition: width .5s; }
+  .nps-bar-pro { background: var(--pro); transition: width .5s; }
+  .bar-legend { display: flex; gap: 1.2rem; margin-top: 0.6rem; font-size: 12px; }
+  .bl-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
+
+  /* Charts row */
+  .charts-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+  .chart-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.2rem;
+  }
+  .chart-title { font-size: 13px; font-weight: 500; color: var(--eq-navy); margin-bottom: 1rem; }
+
+  /* Tabela de respostas recentes */
+  .table-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.2rem;
+    overflow-x: auto;
+  }
+  .table-title { font-size: 13px; font-weight: 500; color: var(--eq-navy); margin-bottom: 1rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-weight: 500; color: var(--muted); padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); }
+  td { padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border); color: var(--text); }
+  tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .badge-pro { background: #e8f8f0; color: #1a7a4a; }
+  .badge-neu { background: #fef9ec; color: #a05c0a; }
+  .badge-det { background: #fdecea; color: #c0392b; }
+
+  .loading { text-align: center; color: var(--muted); padding: 3rem; font-size: 14px; }
+  .empty   { text-align: center; color: var(--muted); padding: 2rem; font-size: 13px; }
+
+  @media (max-width: 640px) {
+    .main { padding: 1rem; }
+    header { padding: 1rem; }
+    .filters { padding: 0.7rem 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo-pinwheel">
+      <div class="p1"></div><div class="p2"></div>
+      <div class="p3"></div><div class="p4"></div>
+    </div>
+    <div>
+      <div class="header-title">NPS Dashboard</div>
+      <div class="header-sub">Grupo Equilibrium</div>
+    </div>
+  </div>
+  <div id="last-update" style="font-size:12px; opacity:.6;"></div>
+</header>
+
+<div class="filters">
+  <span><label>Período</label>
+    <select id="f-periodo" onchange="loadData()">
+      <option value="30">Últimos 30 dias</option>
+      <option value="60">Últimos 60 dias</option>
+      <option value="90">Últimos 90 dias</option>
+      <option value="180">Últimos 6 meses</option>
+      <option value="365">Último ano</option>
+      <option value="0">Todo o período</option>
+    </select>
+  </span>
+  <span><label>Unidade</label>
+    <select id="f-unidade" onchange="loadData()">
+      <option value="">Todas</option>
+      <option value="EQ1">EQ1</option>
+      <option value="EQ2">EQ2</option>
+      <option value="online">Online</option>
+    </select>
+  </span>
+  <span><label>Público</label>
+    <select id="f-publico" onchange="loadData()">
+      <option value="">Todos</option>
+      <option value="paciente">Paciente</option>
+      <option value="responsavel">Responsável</option>
+      <option value="convenio">Convênio</option>
+      <option value="colaborador">Colaborador</option>
+    </select>
+  </span>
+  <span><label>Área</label>
+    <select id="f-area" onchange="loadData()">
+      <option value="">Todas</option>
+      <option value="neuropsicologia">Neuropsicologia</option>
+      <option value="psiquiatria">Psiquiatria</option>
+      <option value="aba">ABA / Infantil</option>
+      <option value="fonoaudiologia">Fonoaudiologia</option>
+      <option value="to">T. Ocupacional</option>
+      <option value="psicopedagogia">Psicopedagogia</option>
+    </select>
+  </span>
+  <button class="btn-refresh" onclick="loadData()">↻ Atualizar</button>
+</div>
+
+<div class="main">
+  <div id="dash-content" class="loading">Carregando dados...</div>
+</div>
+
+<script>
+  /* ════════════════════════════════════════════
+     CONFIGURAÇÃO — preencha com suas credenciais
+     ════════════════════════════════════════════ */
+  const SUPABASE_URL  = 'COLE_AQUI_SUA_URL_SUPABASE';
+  const SUPABASE_ANON = 'COLE_AQUI_SUA_ANON_KEY';
+  /* ════════════════════════════════════════════ */
+
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+  let chartDist = null, chartArea = null, chartTrend = null, chartPublico = null;
+
+  async function loadData() {
+    const dash = document.getElementById('dash-content');
+    dash.innerHTML = '<div class="loading">Carregando...</div>';
+
+    const dias    = parseInt(document.getElementById('f-periodo').value);
+    const unidade = document.getElementById('f-unidade').value;
+    const publico = document.getElementById('f-publico').value;
+    const area    = document.getElementById('f-area').value;
+
+    let q = db.from('nps_respostas').select('*').order('criado_em', { ascending: false });
+    if (dias > 0) {
+      const since = new Date();
+      since.setDate(since.getDate() - dias);
+      q = q.gte('criado_em', since.toISOString());
+    }
+    if (unidade) q = q.eq('unidade', unidade);
+    if (publico) q = q.eq('publico', publico);
+    if (area)    q = q.eq('area', area);
+
+    const { data, error } = await q;
+
+    if (error) {
+      dash.innerHTML = '<div class="loading">Erro ao carregar dados. Verifique as credenciais Supabase.</div>';
+      return;
+    }
+    if (!data || data.length === 0) {
+      dash.innerHTML = '<div class="empty">Nenhuma resposta encontrada para os filtros selecionados.</div>';
+      return;
+    }
+
+    renderDash(data);
+    document.getElementById('last-update').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
+  }
+
+  function calcNPS(data) {
+    const total = data.length;
+    const pro  = data.filter(d => d.nota >= 9).length;
+    const det  = data.filter(d => d.nota <= 6).length;
+    return { nps: Math.round(((pro - det) / total) * 100), pro, det, neu: total - pro - det, total };
+  }
+
+  function renderDash(data) {
+    const { nps, pro, det, neu, total } = calcNPS(data);
+    const avgStar = data.filter(d => d.satisfacao).reduce((s, d) => s + d.satisfacao, 0) / (data.filter(d => d.satisfacao).length || 1);
+    const npsColor = nps >= 50 ? 'pro-color' : nps >= 0 ? 'neu-color' : 'det-color';
+
+    const pctPro = Math.round((pro / total) * 100);
+    const pctNeu = Math.round((neu / total) * 100);
+    const pctDet = Math.round((det / total) * 100);
+
+    // Distribuição por nota
+    const notaDist = Array(11).fill(0);
+    data.forEach(d => notaDist[d.nota]++);
+
+    // Por área
+    const areaMap = {};
+    data.forEach(d => {
+      if (!d.area) return;
+      if (!areaMap[d.area]) areaMap[d.area] = [];
+      areaMap[d.area].push(d);
+    });
+    const areaLabels = Object.keys(areaMap);
+    const areaNPS = areaLabels.map(a => {
+      const { nps: n } = calcNPS(areaMap[a]);
+      return n;
+    });
+
+    // Por público
+    const pubMap = {};
+    data.forEach(d => {
+      const k = d.publico || 'outros';
+      pubMap[k] = (pubMap[k] || 0) + 1;
+    });
+
+    // Tendência (últimos 8 semanas)
+    const weekMap = {};
+    data.forEach(d => {
+      const dt = new Date(d.criado_em);
+      const week = getWeekKey(dt);
+      if (!weekMap[week]) weekMap[week] = [];
+      weekMap[week].push(d);
+    });
+    const weekKeys = Object.keys(weekMap).sort().slice(-8);
+    const weekNPS  = weekKeys.map(w => calcNPS(weekMap[w]).nps);
+
+    // HTML
+    document.getElementById('dash-content').innerHTML = `
+      <div class="metric-row">
+        <div class="metric-card highlight">
+          <div class="mc-label">NPS geral</div>
+          <div class="mc-value ${npsColor}">${nps}</div>
+          <div class="mc-sub">${total} respostas</div>
+        </div>
+        <div class="metric-card">
+          <div class="mc-label">Promotores</div>
+          <div class="mc-value pro-color">${pctPro}%</div>
+          <div class="mc-sub">${pro} respostas (nota 9–10)</div>
+        </div>
+        <div class="metric-card">
+          <div class="mc-label">Neutros</div>
+          <div class="mc-value neu-color">${pctNeu}%</div>
+          <div class="mc-sub">${neu} respostas (nota 7–8)</div>
+        </div>
+        <div class="metric-card">
+          <div class="mc-label">Detratores</div>
+          <div class="mc-value det-color">${pctDet}%</div>
+          <div class="mc-sub">${det} respostas (nota 0–6)</div>
+        </div>
+        <div class="metric-card">
+          <div class="mc-label">Satisfação média</div>
+          <div class="mc-value nps-score">${avgStar.toFixed(1)}</div>
+          <div class="mc-sub">de 5 estrelas</div>
+        </div>
+      </div>
+
+      <div class="metric-card" style="margin-bottom:1.5rem;">
+        <div class="mc-label" style="margin-bottom:.6rem;">Distribuição promotores / neutros / detratores</div>
+        <div class="nps-bar">
+          <div class="nps-bar-pro" style="width:${pctPro}%"></div>
+          <div class="nps-bar-neu" style="width:${pctNeu}%"></div>
+          <div class="nps-bar-det" style="width:${pctDet}%"></div>
+        </div>
+        <div class="bar-legend">
+          <span><span class="bl-dot" style="background:var(--pro)"></span>Promotores ${pctPro}%</span>
+          <span><span class="bl-dot" style="background:var(--neu)"></span>Neutros ${pctNeu}%</span>
+          <span><span class="bl-dot" style="background:var(--det)"></span>Detratores ${pctDet}%</span>
+        </div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="chart-title">Distribuição das notas (0–10)</div>
+          <div style="position:relative; height:200px;">
+            <canvas id="chartDist" role="img" aria-label="Distribuição de notas NPS de 0 a 10">${notaDist.map((v,i)=>`nota ${i}: ${v}`).join(', ')}</canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">NPS por público</div>
+          <div style="position:relative; height:200px;">
+            <canvas id="chartPublico" role="img" aria-label="Contagem de respostas por tipo de público">${Object.entries(pubMap).map(([k,v])=>`${k}: ${v}`).join(', ')}</canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-row" style="margin-bottom:1.5rem;">
+        ${areaLabels.length > 0 ? `
+        <div class="chart-card">
+          <div class="chart-title">NPS por área de atendimento</div>
+          <div style="position:relative; height:${Math.max(180, areaLabels.length * 40 + 60)}px;">
+            <canvas id="chartArea" role="img" aria-label="NPS por área de atendimento">${areaLabels.map((a,i)=>`${a}: ${areaNPS[i]}`).join(', ')}</canvas>
+          </div>
+        </div>` : ''}
+        ${weekKeys.length > 1 ? `
+        <div class="chart-card">
+          <div class="chart-title">Tendência NPS semanal</div>
+          <div style="position:relative; height:200px;">
+            <canvas id="chartTrend" role="img" aria-label="Tendência do NPS ao longo das semanas">${weekKeys.map((w,i)=>`${w}: ${weekNPS[i]}`).join(', ')}</canvas>
+          </div>
+        </div>` : ''}
+      </div>
+
+      <div class="table-card">
+        <div class="table-title">Respostas recentes</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th><th>Público</th><th>Unidade</th><th>Área</th><th>Nota</th><th>Categoria</th><th>Comentário</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.slice(0, 50).map(r => `
+            <tr>
+              <td>${new Date(r.criado_em).toLocaleDateString('pt-BR')}</td>
+              <td>${labelPublico(r.publico)}</td>
+              <td>${r.unidade || '—'}</td>
+              <td>${labelArea(r.area)}</td>
+              <td><strong>${r.nota}</strong></td>
+              <td><span class="badge badge-${r.categoria === 'Promotor' ? 'pro' : r.categoria === 'Neutro' ? 'neu' : 'det'}">${r.categoria}</span></td>
+              <td style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${r.comentario || '—'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+        ${data.length > 50 ? `<p style="font-size:12px;color:var(--muted);margin-top:.8rem;">Exibindo 50 de ${data.length} respostas. Use os filtros para refinar.</p>` : ''}
+      </div>
+    `;
+
+    // Destruir charts antigos
+    [chartDist, chartArea, chartTrend, chartPublico].forEach(c => c && c.destroy());
+
+    // Chart notas
+    chartDist = new Chart(document.getElementById('chartDist'), {
+      type: 'bar',
+      data: {
+        labels: ['0','1','2','3','4','5','6','7','8','9','10'],
+        datasets: [{
+          data: notaDist,
+          backgroundColor: notaDist.map((_, i) => i <= 6 ? '#f1948a' : i <= 8 ? '#f0b27a' : '#82e0aa'),
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { font: { family: 'Sora', size: 11 } } }, x: { ticks: { font: { family: 'Sora', size: 11 } }, grid: { display: false } } }
+      }
+    });
+
+    // Chart público
+    chartPublico = new Chart(document.getElementById('chartPublico'), {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(pubMap).map(labelPublico),
+        datasets: [{ data: Object.values(pubMap), backgroundColor: ['#1A7A6E','#1F4E79','#e67e22','#8e44ad'], borderWidth: 0 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { font: { family: 'Sora', size: 11 }, padding: 10 } } }
+      }
+    });
+
+    // Chart área
+    if (areaLabels.length > 0 && document.getElementById('chartArea')) {
+      chartArea = new Chart(document.getElementById('chartArea'), {
+        type: 'bar',
+        data: {
+          labels: areaLabels.map(labelArea),
+          datasets: [{
+            data: areaNPS,
+            backgroundColor: areaNPS.map(n => n >= 50 ? '#82e0aa' : n >= 0 ? '#f0b27a' : '#f1948a'),
+            borderWidth: 0
+          }]
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { min: -100, max: 100, ticks: { font: { family: 'Sora', size: 11 } } },
+            y: { ticks: { font: { family: 'Sora', size: 11 } }, grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // Chart tendência
+    if (weekKeys.length > 1 && document.getElementById('chartTrend')) {
+      chartTrend = new Chart(document.getElementById('chartTrend'), {
+        type: 'line',
+        data: {
+          labels: weekKeys.map(w => 'Sem ' + w.split('-W')[1]),
+          datasets: [{
+            data: weekNPS,
+            borderColor: '#1A7A6E',
+            backgroundColor: 'rgba(26,122,110,0.08)',
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: '#1A7A6E',
+            borderWidth: 2,
+            pointRadius: 4
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { min: -100, max: 100, ticks: { font: { family: 'Sora', size: 11 } } },
+            x: { ticks: { font: { family: 'Sora', size: 11 }, autoSkip: false }, grid: { display: false } }
+          }
+        }
+      });
+    }
+  }
+
+  function getWeekKey(date) {
+    const d = new Date(date);
+    d.setHours(0,0,0,0);
+    d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+    const year = d.getFullYear();
+    const week = Math.ceil((((d - new Date(year,0,1)) / 86400000) + 1) / 7);
+    return `${year}-W${String(week).padStart(2,'0')}`;
+  }
+
+  function labelPublico(v) {
+    return { paciente: 'Paciente', responsavel: 'Responsável', convenio: 'Convênio', colaborador: 'Colaborador' }[v] || v || '—';
+  }
+  function labelArea(v) {
+    return { neuropsicologia: 'Neuropsicologia', psiquiatria: 'Psiquiatria', aba: 'ABA', fonoaudiologia: 'Fono', to: 'T.O.', psicopedagogia: 'Psicoped.', talentos: 'Talentos', recepcao: 'Recepção', geral: 'Geral' }[v] || v || '—';
+  }
+
+  loadData();
+</script>
+</body>
+</html>
