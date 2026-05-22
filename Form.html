@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avaliação — Grupo Equilibrium</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── CONFIGURAÇÃO SUPABASE ── Preencha antes de publicar */
+  :root {
+    --eq-navy:   #1F4E79;
+    --eq-teal:   #1A7A6E;
+    --eq-teal-l: #E1F5EE;
+    --eq-red:    #C0392B;
+    --eq-amber:  #E67E22;
+    --eq-green:  #27AE60;
+    --text:      #1a1a2e;
+    --muted:     #6b7a8d;
+    --border:    #e2e8f0;
+    --bg:        #f8fafc;
+    --white:     #ffffff;
+    --radius:    12px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Sora', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  .card {
+    background: var(--white);
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    padding: 2.5rem 2rem;
+    width: 100%;
+    max-width: 560px;
+  }
+  .logo-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 2rem;
+  }
+  .logo-pinwheel {
+    width: 36px; height: 36px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 3px;
+  }
+  .petal {
+    border-radius: 50% 0 50% 0;
+  }
+  .p1 { background: var(--eq-navy); border-radius: 50% 0 50% 0; }
+  .p2 { background: var(--eq-teal); border-radius: 0 50% 0 50%; }
+  .p3 { background: var(--eq-teal); border-radius: 0 50% 0 50%; transform: rotate(180deg); }
+  .p4 { background: var(--eq-navy); border-radius: 50% 0 50% 0; transform: rotate(180deg); }
+  .logo-name { font-size: 15px; font-weight: 600; color: var(--eq-navy); letter-spacing: -0.3px; }
+  h1 { font-size: 22px; font-weight: 600; color: var(--eq-navy); line-height: 1.3; margin-bottom: 0.4rem; }
+  .subtitle { font-size: 14px; color: var(--muted); line-height: 1.6; margin-bottom: 2rem; }
+  .section { margin-bottom: 2rem; }
+  label.field-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--eq-navy);
+    margin-bottom: 0.5rem;
+  }
+  select, input[type="text"], textarea {
+    width: 100%;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: 'Sora', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--white);
+    outline: none;
+    transition: border-color .2s;
+  }
+  select:focus, input[type="text"]:focus, textarea:focus {
+    border-color: var(--eq-teal);
+  }
+  textarea { resize: vertical; min-height: 90px; line-height: 1.6; }
+
+  /* Score NPS 0-10 */
+  .score-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 0.5rem;
+    margin-bottom: 0.8rem;
+  }
+  .score-grid {
+    display: grid;
+    grid-template-columns: repeat(11, 1fr);
+    gap: 4px;
+  }
+  .score-btn {
+    aspect-ratio: 1;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--white);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Sora', sans-serif;
+    cursor: pointer;
+    color: var(--text);
+    transition: all .15s;
+  }
+  .score-btn:hover { border-color: var(--eq-teal); background: var(--eq-teal-l); }
+  .score-btn.selected-det { background: #fdecea; border-color: var(--eq-red); color: var(--eq-red); }
+  .score-btn.selected-neu { background: #fef9ec; border-color: var(--eq-amber); color: var(--eq-amber); }
+  .score-btn.selected-pro { background: #e8f8f0; border-color: var(--eq-green); color: var(--eq-green); }
+
+  /* Rating stars */
+  .stars { display: flex; gap: 8px; }
+  .star-btn {
+    width: 36px; height: 36px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--white);
+    cursor: pointer;
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+  }
+  .star-btn:hover, .star-btn.active { background: #fef9ec; border-color: var(--eq-amber); }
+
+  .submit-btn {
+    width: 100%;
+    padding: 0.85rem;
+    background: var(--eq-teal);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-family: 'Sora', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .2s, transform .1s;
+    margin-top: 0.5rem;
+  }
+  .submit-btn:hover { background: var(--eq-navy); }
+  .submit-btn:active { transform: scale(0.98); }
+  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .msg { padding: 0.7rem 1rem; border-radius: 8px; font-size: 13px; margin-top: 1rem; display: none; }
+  .msg.success { background: #e8f8f0; color: #1a7a4a; border: 1px solid #b7e4cb; }
+  .msg.error   { background: #fdecea; color: #c0392b; border: 1px solid #f5b7b1; }
+
+  .thank-you {
+    text-align: center;
+    padding: 2rem 1rem;
+    display: none;
+  }
+  .thank-you .big-check {
+    width: 64px; height: 64px;
+    background: var(--eq-teal-l);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    margin: 0 auto 1.2rem;
+  }
+  .thank-you h2 { font-size: 20px; color: var(--eq-teal); margin-bottom: 0.5rem; }
+  .thank-you p  { font-size: 14px; color: var(--muted); }
+
+  @media (max-width: 480px) {
+    .score-btn { font-size: 11px; }
+    .card { padding: 1.5rem 1rem; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <!-- Logo -->
+  <div class="logo-bar">
+    <div class="logo-pinwheel">
+      <div class="p1"></div><div class="p2"></div>
+      <div class="p3"></div><div class="p4"></div>
+    </div>
+    <span class="logo-name">Grupo Equilibrium</span>
+  </div>
+
+  <!-- Formulário -->
+  <div id="form-area">
+    <h1>Avalie sua experiência</h1>
+    <p class="subtitle">Sua opinião nos ajuda a oferecer um atendimento cada vez melhor. Leva menos de 2 minutos.</p>
+
+    <!-- Público -->
+    <div class="section">
+      <label class="field-label">Você é...</label>
+      <select id="publico">
+        <option value="">Selecione</option>
+        <option value="paciente">Paciente</option>
+        <option value="responsavel">Responsável por paciente</option>
+        <option value="convenio">Convênio / Parceiro</option>
+        <option value="colaborador">Colaborador interno</option>
+      </select>
+    </div>
+
+    <!-- Unidade -->
+    <div class="section">
+      <label class="field-label">Unidade de atendimento</label>
+      <select id="unidade">
+        <option value="">Selecione</option>
+        <option value="EQ1">EQ1 — Unidade 1</option>
+        <option value="EQ2">EQ2 — Unidade 2</option>
+        <option value="online">Atendimento online</option>
+        <option value="na">Não se aplica</option>
+      </select>
+    </div>
+
+    <!-- Área -->
+    <div class="section">
+      <label class="field-label">Área / serviço utilizado</label>
+      <select id="area">
+        <option value="">Selecione</option>
+        <option value="neuropsicologia">Neuropsicologia</option>
+        <option value="psiquiatria">Psiquiatria</option>
+        <option value="aba">Terapia ABA / Infantil</option>
+        <option value="fonoaudiologia">Fonoaudiologia</option>
+        <option value="to">Terapia Ocupacional</option>
+        <option value="psicopedagogia">Psicopedagogia</option>
+        <option value="talentos">Talentos</option>
+        <option value="recepcao">Recepção / Administrativo</option>
+        <option value="geral">Geral / Mais de uma área</option>
+      </select>
+    </div>
+
+    <!-- NPS -->
+    <div class="section">
+      <label class="field-label">Em uma escala de 0 a 10, qual a probabilidade de você recomendar o Grupo Equilibrium a alguém?</label>
+      <div class="score-label"><span>Não recomendaria</span><span>Recomendaria com certeza</span></div>
+      <div class="score-grid" id="score-grid">
+        <button class="score-btn" data-v="0">0</button>
+        <button class="score-btn" data-v="1">1</button>
+        <button class="score-btn" data-v="2">2</button>
+        <button class="score-btn" data-v="3">3</button>
+        <button class="score-btn" data-v="4">4</button>
+        <button class="score-btn" data-v="5">5</button>
+        <button class="score-btn" data-v="6">6</button>
+        <button class="score-btn" data-v="7">7</button>
+        <button class="score-btn" data-v="8">8</button>
+        <button class="score-btn" data-v="9">9</button>
+        <button class="score-btn" data-v="10">10</button>
+      </div>
+    </div>
+
+    <!-- Satisfação geral (1-5 estrelas) -->
+    <div class="section">
+      <label class="field-label">Como você avalia a qualidade do atendimento?</label>
+      <div class="stars" id="stars-area">
+        <button class="star-btn" data-s="1">⭐</button>
+        <button class="star-btn" data-s="2">⭐</button>
+        <button class="star-btn" data-s="3">⭐</button>
+        <button class="star-btn" data-s="4">⭐</button>
+        <button class="star-btn" data-s="5">⭐</button>
+      </div>
+    </div>
+
+    <!-- Ponto forte -->
+    <div class="section">
+      <label class="field-label">O que mais te agradou?</label>
+      <select id="ponto_forte">
+        <option value="">Selecione (opcional)</option>
+        <option value="acolhimento">Acolhimento da equipe</option>
+        <option value="competencia">Competência técnica</option>
+        <option value="clareza">Clareza nas explicações</option>
+        <option value="pontualidade">Pontualidade</option>
+        <option value="estrutura">Estrutura / ambiente</option>
+        <option value="agendamento">Facilidade de agendamento</option>
+        <option value="resultado">Resultado do atendimento</option>
+      </select>
+    </div>
+
+    <!-- Comentário livre -->
+    <div class="section">
+      <label class="field-label">Comentário (opcional)</label>
+      <textarea id="comentario" placeholder="Conte mais sobre sua experiência..."></textarea>
+    </div>
+
+    <div class="msg" id="msg-box"></div>
+    <button class="submit-btn" id="btn-submit" onclick="submitNPS()">Enviar avaliação</button>
+  </div>
+
+  <!-- Obrigado -->
+  <div class="thank-you" id="thank-you">
+    <div class="big-check">✓</div>
+    <h2>Obrigado pelo seu feedback!</h2>
+    <p>Sua avaliação foi registrada com sucesso.<br>Ela é fundamental para continuarmos evoluindo.</p>
+  </div>
+</div>
+
+<script>
+  /* ════════════════════════════════════════════
+     CONFIGURAÇÃO — preencha com suas credenciais
+     ════════════════════════════════════════════ */
+  const SUPABASE_URL  = 'COLE_AQUI_SUA_URL_SUPABASE';
+  const SUPABASE_ANON = 'COLE_AQUI_SUA_ANON_KEY';
+  /* ════════════════════════════════════════════ */
+
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+  let selectedScore = null;
+  let selectedStars = null;
+
+  document.querySelectorAll('.score-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedScore = parseInt(btn.dataset.v);
+      document.querySelectorAll('.score-btn').forEach(b => b.className = 'score-btn');
+      const cls = selectedScore <= 6 ? 'selected-det' : selectedScore <= 8 ? 'selected-neu' : 'selected-pro';
+      btn.classList.add(cls);
+    });
+  });
+
+  document.querySelectorAll('.star-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedStars = parseInt(btn.dataset.s);
+      document.querySelectorAll('.star-btn').forEach((b, i) => {
+        b.classList.toggle('active', i < selectedStars);
+      });
+    });
+  });
+
+  async function submitNPS() {
+    const publico  = document.getElementById('publico').value;
+    const unidade  = document.getElementById('unidade').value;
+    const area     = document.getElementById('area').value;
+    const comentario = document.getElementById('comentario').value.trim();
+    const ponto_forte = document.getElementById('ponto_forte').value;
+    const msgBox   = document.getElementById('msg-box');
+
+    if (!publico) return showMsg('Por favor, selecione quem você é.', 'error');
+    if (!unidade) return showMsg('Por favor, selecione a unidade.', 'error');
+    if (selectedScore === null) return showMsg('Por favor, escolha uma nota de 0 a 10.', 'error');
+
+    const btn = document.getElementById('btn-submit');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+
+    const categoria = selectedScore <= 6 ? 'Detrator' : selectedScore <= 8 ? 'Neutro' : 'Promotor';
+
+    const { error } = await db.from('nps_respostas').insert([{
+      publico,
+      unidade,
+      area: area || null,
+      nota: selectedScore,
+      categoria,
+      satisfacao: selectedStars,
+      ponto_forte: ponto_forte || null,
+      comentario: comentario || null,
+      criado_em: new Date().toISOString()
+    }]);
+
+    if (error) {
+      showMsg('Erro ao enviar. Tente novamente.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Enviar avaliação';
+    } else {
+      document.getElementById('form-area').style.display = 'none';
+      document.getElementById('thank-you').style.display = 'block';
+    }
+  }
+
+  function showMsg(txt, type) {
+    const box = document.getElementById('msg-box');
+    box.textContent = txt;
+    box.className = 'msg ' + type;
+    box.style.display = 'block';
+    setTimeout(() => box.style.display = 'none', 4000);
+  }
+</script>
+</body>
+</html>
